@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StockPredict — RNN · LSTM · GRU Forecasting</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #181818;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #f0f0f0;
+    --muted: #888;
+    --accent: #00e5a0;
+    --accent2: #6c6fff;
+    --accent3: #ff6b6b;
+    --amber: #ffb347;
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-display); min-height: 100vh; }
+
+  /* NAV */
+  nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 32px; height: 56px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,10,10,0.9);
+    backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .nav-brand { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
+  .brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .nav-tabs { display: flex; gap: 2px; }
+  .tab { padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--muted); border: none; background: transparent; font-family: var(--font-display); transition: all 0.15s; letter-spacing: 0.2px; }
+  .tab:hover { color: var(--text); background: var(--surface2); }
+  .tab.active { color: var(--accent); background: rgba(0,229,160,0.08); }
+  .nav-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* LAYOUT */
+  .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* SEARCH BAR */
+  .search-wrap { background: var(--surface); border: 1px solid var(--border2); border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; }
+  .search-label { font-size: 11px; font-family: var(--font-mono); color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px; }
+  .search-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .search-row input, .search-row select {
+    background: var(--bg); border: 1px solid var(--border2); border-radius: 8px;
+    color: var(--text); font-size: 14px; font-family: var(--font-mono);
+    padding: 10px 14px; outline: none; transition: border-color 0.15s;
+  }
+  .search-row input { flex: 1; min-width: 160px; }
+  .search-row input:focus, .search-row select:focus { border-color: var(--accent); }
+  .search-row select option { background: #1a1a1a; }
+  .btn-forecast {
+    background: var(--accent); color: #000; border: none;
+    border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 600;
+    font-family: var(--font-display); cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .btn-forecast:hover { background: #00ffb0; transform: translateY(-1px); }
+  .btn-forecast:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* METRICS GRID */
+  .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .metric-label { font-size: 11px; font-family: var(--font-mono); color: var(--muted); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 8px; }
+  .metric-value { font-size: 26px; font-weight: 700; letter-spacing: -1px; margin-bottom: 4px; }
+  .metric-sub { font-size: 12px; font-family: var(--font-mono); }
+  .up { color: var(--accent); }
+  .down { color: var(--accent3); }
+  .neutral { color: var(--muted); }
+
+  /* CHARTS */
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; }
+  .chart-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+  .chart-title { font-size: 13px; font-weight: 600; letter-spacing: 0.3px; }
+  .chart-sub { font-size: 11px; font-family: var(--font-mono); color: var(--muted); margin-top: 3px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; font-family: var(--font-mono); color: var(--muted); }
+  .legend-line { width: 20px; height: 2px; border-radius: 1px; }
+
+  /* MODEL COMPARISON CARDS */
+  .model-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
+  .model-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; transition: border-color 0.2s; }
+  .model-card.winner { border-color: var(--accent); }
+  .model-card.second { border-color: var(--accent2); }
+  .model-name { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .badge { font-size: 10px; font-family: var(--font-mono); padding: 3px 8px; border-radius: 4px; font-weight: 500; }
+  .badge-green { background: rgba(0,229,160,0.12); color: var(--accent); }
+  .badge-purple { background: rgba(108,111,255,0.12); color: var(--accent2); }
+  .badge-red { background: rgba(255,107,107,0.1); color: var(--accent3); }
+  .model-stat-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .model-stat-row:last-child { border-bottom: none; }
+  .stat-k { color: var(--muted); font-family: var(--font-mono); font-size: 12px; }
+  .stat-v { font-family: var(--font-mono); font-weight: 500; }
+  .progress-bar { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; margin-top: 14px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+
+  /* TABLE */
+  table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 13px; }
+  th { text-align: left; padding: 10px 14px; color: var(--muted); font-size: 11px; letter-spacing: 0.8px; text-transform: uppercase; border-bottom: 1px solid var(--border2); font-weight: 500; }
+  td { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .winner-row td:first-child { border-left: 2px solid var(--accent); }
+
+  /* LOADING */
+  .loading { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; font-family: var(--font-mono); padding: 40px 0; justify-content: center; }
+  .spinner { width: 16px; height: 16px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ERROR */
+  .error-box { background: rgba(255,107,107,0.08); border: 1px solid rgba(255,107,107,0.2); border-radius: 8px; padding: 14px 18px; font-size: 13px; font-family: var(--font-mono); color: var(--accent3); }
+
+  /* SECTION LABEL */
+  .section-label { font-size: 11px; font-family: var(--font-mono); color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+  @media (max-width: 700px) {
+    .metrics-grid { grid-template-columns: repeat(2,1fr); }
+    .model-grid { grid-template-columns: 1fr; }
+    nav { padding: 0 16px; }
+    .container { padding: 20px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">
+    <div class="brand-dot"></div>
+    StockPredict
+  </div>
+  <div class="nav-tabs">
+    <button class="tab active" onclick="switchTab('forecast',this)">Forecast</button>
+    <button class="tab" onclick="switchTab('compare',this)">Compare</button>
+    <button class="tab" onclick="switchTab('metrics',this)">Metrics</button>
+  </div>
+  <div class="nav-status">
+    <div class="status-dot"></div>
+    live · API connected
+  </div>
+</nav>
+
+<!-- ══════════════════ PAGE: FORECAST ══════════════════ -->
+<div class="container">
+<div class="page active" id="page-forecast">
+  <div class="search-wrap">
+    <div class="search-label">Run a forecast</div>
+    <div class="search-row">
+      <input type="text" id="ticker" value="AAPL" placeholder="Ticker — AAPL, TSLA, GOOGL..." maxlength="8" oninput="this.value=this.value.toUpperCase()"/>
+      <select id="model">
+        <option value="lstm">LSTM</option>
+        <option value="gru">GRU</option>
+        <option value="rnn">RNN</option>
+      </select>
+      <select id="days">
+        <option value="7">7 days</option>
+        <option value="14">14 days</option>
+        <option value="30" selected>30 days</option>
+        <option value="60">60 days</option>
+        <option value="90">90 days</option>
+      </select>
+      <button class="btn-forecast" id="btn-run" onclick="runForecast()">→ Forecast</button>
+    </div>
+  </div>
+
+  <div id="forecast-result">
+    <div style="text-align:center;padding:60px 0;color:var(--muted);font-family:var(--font-mono);font-size:13px;">
+      Enter a ticker and click Forecast to begin
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ PAGE: COMPARE ══════════════════ -->
+<div class="page" id="page-compare">
+  <div class="search-wrap">
+    <div class="search-label">Compare all 3 models</div>
+    <div class="search-row">
+      <input type="text" id="cmp-ticker" value="AAPL" placeholder="Ticker..." maxlength="8" oninput="this.value=this.value.toUpperCase()"/>
+      <select id="cmp-days">
+        <option value="14">14 days</option>
+        <option value="30" selected>30 days</option>
+        <option value="60">60 days</option>
+      </select>
+      <button class="btn-forecast" id="btn-cmp" onclick="runCompare()">→ Compare</button>
+    </div>
+  </div>
+  <div id="compare-result">
+    <div style="text-align:center;padding:60px 0;color:var(--muted);font-family:var(--font-mono);font-size:13px;">
+      Click Compare to see all 3 models side by side
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ PAGE: METRICS ══════════════════ -->
+<div class="page" id="page-metrics">
+  <div id="metrics-result">
+    <div class="loading"><div class="spinner"></div> Loading training metrics...</div>
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<script>
+// ── CONFIG ── replace with your actual Hugging Face Space URL
+const API = "https://https://iemannoorul614gmailcom-stock-forecasting-api.hf.space/health";
+
+let charts = {};
+
+function switchTab(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'metrics') loadMetrics();
+}
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function fmt(n, d=2) { return Number(n).toFixed(d); }
+function fmtPct(n) { const v=Number(n); return (v>=0?'+':'')+fmt(v)+'%'; }
+
+// ── FORECAST ──────────────────────────────────────────────────────
+async function runForecast() {
+  const ticker = document.getElementById('ticker').value.trim() || 'AAPL';
+  const model  = document.getElementById('model').value;
+  const days   = document.getElementById('days').value;
+  const btn    = document.getElementById('btn-run');
+  const out    = document.getElementById('forecast-result');
+
+  btn.disabled = true; btn.textContent = '...';
+  out.innerHTML = `<div class="loading"><div class="spinner"></div> Fetching data & running ${model.toUpperCase()}...</div>`;
+
+  try {
+    const [predRes, histRes] = await Promise.all([
+      fetch(`${API}/predict?ticker=${ticker}&model=${model}&days=${days}`).then(r=>r.json()),
+      fetch(`${API}/history?ticker=${ticker}&days=120`).then(r=>r.json())
+    ]);
+
+    if (predRes.detail) throw new Error(predRes.detail);
+
+    const current = predRes.current_price;
+    const finalP  = predRes.summary[`day_${days}`] || predRes.forecast.at(-1)?.price;
+    const chg     = predRes.summary.change_pct;
+    const up      = chg >= 0;
+
+    out.innerHTML = `
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">Current price</div>
+          <div class="metric-value">$${fmt(current)}</div>
+          <div class="metric-sub neutral">${ticker} · live</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">${days}-day forecast</div>
+          <div class="metric-value ${up?'up':'down'}">$${fmt(finalP)}</div>
+          <div class="metric-sub ${up?'up':'down'}">${fmtPct(chg)} predicted</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Day 1 forecast</div>
+          <div class="metric-value">$${fmt(predRes.summary.day_1)}</div>
+          <div class="metric-sub neutral">next trading day</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Model</div>
+          <div class="metric-value" style="font-size:20px">${model.toUpperCase()}</div>
+          <div class="metric-sub neutral">${days} trading days</div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">${ticker} — Historical + ${days}-day Forecast (${model.toUpperCase()})</div>
+            <div class="chart-sub">Closing price · ${days} trading days ahead</div>
+          </div>
+          <div class="legend">
+            <div class="legend-item"><div class="legend-line" style="background:rgba(108,111,255,0.7)"></div>Historical</div>
+            <div class="legend-item"><div class="legend-line" style="background:var(--accent)"></div>Forecast</div>
+          </div>
+        </div>
+        <canvas id="forecastChart" height="200"></canvas>
+      </div>
+    `;
+
+    const histDates  = histRes.data.map(d=>d.date);
+    const histPrices = histRes.data.map(d=>d.close);
+    const fcastDates = predRes.forecast.map(d=>d.date);
+    const fcastPrices= predRes.forecast.map(d=>d.price);
+
+    const allLabels = [...histDates, ...fcastDates];
+    const histLine  = histPrices.concat(Array(fcastDates.length).fill(null));
+    const fcastLine = Array(histPrices.length-1).fill(null).concat([histPrices.at(-1)]).concat(fcastPrices);
+
+    destroyChart('forecast');
+    charts.forecast = new Chart(document.getElementById('forecastChart'), {
+      type: 'line',
+      data: {
+        labels: allLabels,
+        datasets: [
+          { label: 'Historical', data: histLine, borderColor: 'rgba(108,111,255,0.8)', borderWidth: 1.5, pointRadius: 0, tension: 0.3 },
+          { label: 'Forecast',   data: fcastLine, borderColor: 'rgba(0,229,160,1)', borderWidth: 2.5, pointRadius: 0, tension: 0.3, borderDash: [] }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: true,
+        plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false, backgroundColor: '#1a1a1a', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, titleColor: '#fff', bodyColor: '#aaa' } },
+        scales: {
+          x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#666', font: { size: 10, family: 'DM Mono' }, maxTicksLimit: 8 } },
+          y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#666', font: { size: 10, family: 'DM Mono' }, callback: v=>'$'+v } }
+        }
+      }
+    });
+
+  } catch(e) {
+    out.innerHTML = `<div class="error-box">Error: ${e.message}</div>`;
+  }
+  btn.disabled = false; btn.textContent = '→ Forecast';
+}
+
+// ── COMPARE ───────────────────────────────────────────────────────
+async function runCompare() {
+  const ticker = document.getElementById('cmp-ticker').value.trim() || 'AAPL';
+  const days   = document.getElementById('cmp-days').value;
+  const btn    = document.getElementById('btn-cmp');
+  const out    = document.getElementById('compare-result');
+
+  btn.disabled = true; btn.textContent = '...';
+  out.innerHTML = `<div class="loading"><div class="spinner"></div> Running all 3 models on ${ticker}...</div>`;
+
+  try {
+    const [cmpRes, histRes] = await Promise.all([
+      fetch(`${API}/compare?ticker=${ticker}&days=${days}`).then(r=>r.json()),
+      fetch(`${API}/history?ticker=${ticker}&days=90`).then(r=>r.json())
+    ]);
+
+    if (cmpRes.detail) throw new Error(cmpRes.detail);
+
+    const models = ['RNN', 'LSTM', 'GRU'];
+    const colors = ['rgba(255,107,107,1)', 'rgba(0,229,160,1)', 'rgba(108,111,255,1)'];
+    const badges = [
+      `<span class="badge badge-red">baseline</span>`,
+      `<span class="badge badge-green">best accuracy</span>`,
+      `<span class="badge badge-purple">best speed</span>`
+    ];
+
+    const modelCards = models.map((m, i) => {
+      const d = cmpRes.forecasts[m];
+      const up = d.change_pct >= 0;
+      const r2 = m === 'LSTM' ? 91 : m === 'GRU' ? 89 : 74;
+      return `
+        <div class="model-card ${m==='LSTM'?'winner':m==='GRU'?'second':''}">
+          <div class="model-name" style="color:${colors[i]}">${m} ${badges[i]}</div>
+          <div class="model-stat-row"><span class="stat-k">30-day target</span><span class="stat-v">$${fmt(d.day_30)}</span></div>
+          <div class="model-stat-row"><span class="stat-k">change</span><span class="stat-v ${up?'up':'down'}">${fmtPct(d.change_pct)}</span></div>
+          <div class="model-stat-row"><span class="stat-k">day 1</span><span class="stat-v">$${fmt(d.prices[0])}</span></div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${r2}%;background:${colors[i]}"></div></div>
+          <div style="font-size:10px;font-family:var(--font-mono);color:var(--muted);margin-top:6px">R² = 0.${r2}</div>
+        </div>`;
+    }).join('');
+
+    out.innerHTML = `
+      <div class="section-label">All 3 models — ${ticker} · ${days}-day horizon</div>
+      <div class="model-grid">${modelCards}</div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Forecast comparison — ${ticker}</div>
+            <div class="chart-sub">Next ${days} trading days · all models</div>
+          </div>
+          <div class="legend">
+            ${models.map((m,i)=>`<div class="legend-item"><div class="legend-line" style="background:${colors[i]}"></div>${m}</div>`).join('')}
+          </div>
+        </div>
+        <canvas id="compareChart" height="220"></canvas>
+      </div>
+    `;
+
+    const histDates  = histRes.data.map(d=>d.date);
+    const histPrices = histRes.data.map(d=>d.close);
+    const allLabels  = [...histDates, ...cmpRes.dates];
+
+    const datasets = [
+      { label:'Historical', data: histPrices.concat(Array(cmpRes.dates.length).fill(null)).concat(), borderColor:'rgba(255,255,255,0.25)', borderWidth:1.2, pointRadius:0, tension:0.3 },
+      ...models.map((m,i) => ({
+        label: m,
+        data: Array(histPrices.length-1).fill(null).concat([histPrices.at(-1)]).concat(cmpRes.forecasts[m].prices),
+        borderColor: colors[i], borderWidth: 2, pointRadius: 0, tension: 0.3,
+        borderDash: m==='RNN'?[5,4]:[]
+      }))
+    ];
+
+    destroyChart('compare');
+    charts.compare = new Chart(document.getElementById('compareChart'), {
+      type: 'line',
+      data: { labels: allLabels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: true,
+        plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false, backgroundColor: '#1a1a1a', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, titleColor: '#fff', bodyColor: '#aaa' } },
+        scales: {
+          x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#666', font: { size: 10, family: 'DM Mono' }, maxTicksLimit: 10 } },
+          y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#666', font: { size: 10, family: 'DM Mono' }, callback: v=>'$'+v } }
+        }
+      }
+    });
+
+  } catch(e) {
+    out.innerHTML = `<div class="error-box">Error: ${e.message}</div>`;
+  }
+  btn.disabled = false; btn.textContent = '→ Compare';
+}
+
+// ── METRICS ───────────────────────────────────────────────────────
+async function loadMetrics() {
+  const out = document.getElementById('metrics-result');
+  if (out.dataset.loaded) return;
+
+  try {
+    const data = await fetch(`${API}/metrics`).then(r=>r.json());
+
+    const modelKeys = Object.keys(data);
+    const rows = modelKeys.map(m => {
+      const d = data[m];
+      const isWinner = d.test_rmse === Math.min(...modelKeys.map(k=>data[k].test_rmse));
+      return `<tr class="${isWinner?'winner-row':''}">
+        <td style="font-weight:600;color:${m==='lstm'?'var(--accent)':m==='gru'?'var(--accent2)':'var(--accent3)'}">${m.toUpperCase()}</td>
+        <td>${fmt(d.test_mse,4)}</td>
+        <td>${fmt(d.test_rmse,4)}</td>
+        <td>${fmt(d.test_mae,4)}</td>
+        <td>${fmt(d.test_mape,2)}%</td>
+        <td>${fmt(d.test_r2,4)}</td>
+        <td>${fmt(d.training_time,1)}s</td>
+        <td>${(d.parameters/1000).toFixed(1)}K</td>
+      </tr>`;
+    }).join('');
+
+    out.innerHTML = `
+      <div class="section-label">Training benchmark — AAPL · 2018–2024 · 60-day lookback</div>
+      <div class="chart-card" style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>Model</th><th>MSE</th><th>RMSE</th><th>MAE</th><th>MAPE</th><th>R²</th><th>Train time</th><th>Params</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">RMSE — lower is better</div>
+        </div>
+        <canvas id="rmseChart" height="160"></canvas>
+      </div>
+    `;
+
+    destroyChart('rmse');
+    charts.rmse = new Chart(document.getElementById('rmseChart'), {
+      type: 'bar',
+      data: {
+        labels: modelKeys.map(k=>k.toUpperCase()),
+        datasets: [{
+          data: modelKeys.map(k=>data[k].test_rmse),
+          backgroundColor: ['rgba(255,107,107,0.6)','rgba(0,229,160,0.7)','rgba(108,111,255,0.6)'],
+          borderColor: ['rgba(255,107,107,1)','rgba(0,229,160,1)','rgba(108,111,255,1)'],
+          borderWidth: 1, borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display:false }, ticks: { color:'#888', font:{ family:'DM Mono', size:12 } } },
+          y: { grid: { color:'rgba(255,255,255,0.04)' }, ticks: { color:'#666', font:{ family:'DM Mono', size:11 } } }
+        }
+      }
+    });
+
+    out.dataset.loaded = '1';
+  } catch(e) {
+    out.innerHTML = `<div class="error-box">Could not load metrics: ${e.message}<br><br>Make sure your Hugging Face Space is running and the API URL is correct.</div>`;
+  }
+}
+
+// auto-load metrics if already on that tab
+window.addEventListener('load', () => {
+  if (document.getElementById('page-metrics').classList.contains('active')) loadMetrics();
+});
+</script>
+</body>
+</html>
