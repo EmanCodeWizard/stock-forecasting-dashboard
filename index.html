@@ -425,7 +425,7 @@ async function runCompare() {
 // ── METRICS ───────────────────────────────────────────────────────
 async function loadMetrics() {
   const out = document.getElementById('metrics-result');
-  if (out.dataset.loaded) return;
+  
 
   try {
     const data = await fetch(`${API}/metrics`).then(r=>r.json());
@@ -433,16 +433,16 @@ async function loadMetrics() {
     const modelKeys = Object.keys(data);
     const rows = modelKeys.map(m => {
       const d = data[m];
-      const isWinner = d.test_rmse === Math.min(...modelKeys.map(k=>data[k].test_rmse));
+      const isWinner = d.test_rmse ?? d.rmse ?? 0 === Math.min(...modelKeys.map(k=>data[k].test_rmse));
       return `<tr class="${isWinner?'winner-row':''}">
         <td style="font-weight:600;color:${m==='lstm'?'var(--accent)':m==='gru'?'var(--accent2)':'var(--accent3)'}">${m.toUpperCase()}</td>
-        <td>${fmt(d.test_mse,4)}</td>
-        <td>${fmt(d.test_rmse,4)}</td>
-        <td>${fmt(d.test_mae,4)}</td>
-        <td>${fmt(d.test_mape,2)}%</td>
-        <td>${fmt(d.test_r2,4)}</td>
-        <td>${fmt(d.training_time,1)}s</td>
-        <td>${(d.parameters/1000).toFixed(1)}K</td>
+        <td>${fmt(d.test_mse ?? d.mse ?? 0,4)}</td>
+        <td>${fmt(d.test_rmse ?? d.rmse ?? 0,4)}</td>
+        <td>${fmt(d.test_mae ?? d.mae ?? 0,4)}</td>
+        <td>${fmt(d.test_mape ?? d.mape ?? 0,2)}%</td>
+        <td>${fmt(d.test_r2 ?? d.r2 ?? 0,4)}</td>
+        <td>${fmt(d.training_time ?? d.time_s ?? 0,1)}s</td>
+        <td>${((d.parameters ?? d.params ?? 0)/1000).toFixed(1)}K</td>
       </tr>`;
     }).join('');
 
