@@ -436,13 +436,13 @@ async function loadMetrics() {
       const isWinner = d.test_rmse ?? d.rmse ?? 0 === Math.min(...modelKeys.map(k=>data[k].test_rmse));
       return `<tr class="${isWinner?'winner-row':''}">
         <td style="font-weight:600;color:${m==='lstm'?'var(--accent)':m==='gru'?'var(--accent2)':'var(--accent3)'}">${m.toUpperCase()}</td>
-        <td>${fmt(d.test_mse ?? d.mse ?? 0,4)}</td>
-        <td>${fmt(d.test_rmse ?? d.rmse ?? 0,4)}</td>
-        <td>${fmt(d.test_mae ?? d.mae ?? 0,4)}</td>
-        <td>${fmt(d.test_mape ?? d.mape ?? 0,2)}%</td>
-        <td>${fmt(d.test_r2 ?? d.r2 ?? 0,4)}</td>
-        <td>${fmt(d.training_time ?? d.time_s ?? 0,1)}s</td>
-        <td>${((d.parameters ?? d.params ?? 0)/1000).toFixed(1)}K</td>
+        <td>${fmt(d.mse ?? d.test_mse ?? "-",4)}</td>
+        <td>${fmt(d.rmse ?? d.test_rmse ?? 0,4)}</td>
+        <td>${fmt(d.mae ?? d.test_mae ?? 0,4)}</td>
+        <td>${fmt(d.mape ?? d.test_mape ?? 0,2)}%</td>
+        <td>${fmt(d.r2 ?? d.test_r2 ?? 0,4)}</td>
+        <td>${fmt(d.time_s ?? d.training_time ?? 0,1)}s</td>
+        <td>${((d.params ?? d.parameters ?? 0)/1000).toFixed(1)}K</td>
       </tr>`;
     }).join('');
 
@@ -470,7 +470,7 @@ async function loadMetrics() {
       data: {
         labels: modelKeys.map(k=>k.toUpperCase()),
         datasets: [{
-          data: modelKeys.map(k=>data[k].test_rmse),
+          data: modelKeys.map(k=>(data[k].rmse ?? data[k].test_rmse ?? 0)),
           backgroundColor: ['rgba(255,107,107,0.6)','rgba(0,229,160,0.7)','rgba(108,111,255,0.6)'],
           borderColor: ['rgba(255,107,107,1)','rgba(0,229,160,1)','rgba(108,111,255,1)'],
           borderWidth: 1, borderRadius: 6
